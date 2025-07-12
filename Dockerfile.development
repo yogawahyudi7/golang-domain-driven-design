@@ -1,0 +1,77 @@
+# Alternative Dockerfile using secure Alpine images
+# Build stage
+FROM golang:1.23-alpine3.20 AS builder
+
+# Install security updates and necessary packages
+RUN apk update && apk upgrade && apk add --no-cache \
+    ca-certificates \
+    git \
+    tzdata \
+    && rm -rf /var/cache/apk/*
+
+# Create non-root user for build
+RUN adduser -D -s /bin/sh appuser
+
+WORKDIR /app
+
+# Copy go mod and sum files first for better caching
+COPY go.mod go.sum ./
+
+# Download and verify dependencies
+RUN go mod download && go mod verify
+
+# Copy source code
+COPY . .
+
+# Build the application with security flags
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -a -installsuffix cgo \
+    -o main cmd/api/main.go
+
+# Final stage - use latest Alpine with security updates
+FROM alpine:3.20
+
+# Install security updates and minimal runtime dependencies
+RUN apk update && apk upgrade && apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    dumb-init \
+    && rm -rf /var/cache/apk/* \
+    && rm -rf /tmp/*
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Create app directory with proper permissions
+RUN mkdir -p /app && \
+    chown -R appuser:appgroup /app
+
+WORKDIR /app
+
+# Copy the binary from builder stage
+COPY --from=builder /app/main ./main
+
+# Copy .env.example as template
+COPY --from=builder /app/.env.example ./.env.example
+
+# Change ownership of app files
+RUN chown -R appuser:appgroup /app && \
+    chmod +x /app/main
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 8080
+
+# Add health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+# Use dumb-init for proper signal handling
+ENTRYPOINT ["dumb-init", "--"]
+
+# Command to run
+CMD ["./main"]
