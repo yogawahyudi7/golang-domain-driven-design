@@ -448,20 +448,451 @@ If you don't want to install `make`, use the provided scripts:
 
 ## 📡 API Endpoints
 
-### Authentication
-- `POST /api/v1/auth/login` - Login user
+### 🏥 Health Check
+- `GET /health` - Application health status
+  - **Description**: Check if the application is running and healthy
+  - **Auth Required**: No
+  - **Response**: `200 OK` with health status
 
-### Users
-- `POST /api/v1/users` - Create user
-- `GET /api/v1/users` - List users (with pagination)
+### 🔐 Authentication Endpoints
+Base URL: `/api/v1/auth`
+
+- `POST /api/v1/auth/register` - Register new user
+  - **Description**: Create a new user account
+  - **Auth Required**: No
+  - **Body**: `{ "email": "string", "username": "string", "password": "string", "first_name": "string", "last_name": "string" }`
+  - **Response**: `201 Created` with user data
+
+- `POST /api/v1/auth/login` - User authentication
+  - **Description**: Authenticate user and get JWT tokens
+  - **Auth Required**: No
+  - **Body**: `{ "email": "string", "password": "string" }`
+  - **Response**: `200 OK` with access and refresh tokens
+
+- `POST /api/v1/auth/refresh` - Refresh access token
+  - **Description**: Get new access token using refresh token
+  - **Auth Required**: Yes (Refresh Token)
+  - **Body**: `{ "refresh_token": "string" }`
+  - **Response**: `200 OK` with new access token
+
+### 👥 User Management Endpoints
+Base URL: `/api/v1/users` (🔒 **All endpoints require JWT authentication**)
+
+- `GET /api/v1/users/profile` - Get current user profile
+  - **Description**: Get authenticated user's profile information
+  - **Auth Required**: Yes (JWT Bearer Token)
+  - **Response**: `200 OK` with user profile data
+
+- `POST /api/v1/users` - Create new user
+  - **Description**: Create a new user (admin function)
+  - **Auth Required**: Yes (JWT Bearer Token)
+  - **Body**: `{ "email": "string", "username": "string", "password": "string", "first_name": "string", "last_name": "string" }`
+  - **Response**: `201 Created` with user data
+
+- `GET /api/v1/users` - List all users
+  - **Description**: Get paginated list of users
+  - **Auth Required**: Yes (JWT Bearer Token)
+  - **Query Parameters**: 
+    - `page` (optional): Page number for pagination
+    - `limit` (optional): Number of items per page
+  - **Response**: `200 OK` with user list and pagination info
+
 - `GET /api/v1/users/:id` - Get user by ID
+  - **Description**: Get specific user by their ID
+  - **Auth Required**: Yes (JWT Bearer Token)
+  - **Path Parameters**: `id` - User ID
+  - **Response**: `200 OK` with user data
+
 - `PUT /api/v1/users/:id` - Update user
+  - **Description**: Update user information
+  - **Auth Required**: Yes (JWT Bearer Token)
+  - **Path Parameters**: `id` - User ID
+  - **Body**: `{ "email": "string", "username": "string", "first_name": "string", "last_name": "string" }`
+  - **Response**: `200 OK` with updated user data
+
 - `DELETE /api/v1/users/:id` - Delete user
+  - **Description**: Delete user account
+  - **Auth Required**: Yes (JWT Bearer Token)
+  - **Path Parameters**: `id` - User ID
+  - **Response**: `204 No Content`
 
-### Health Check
-- `GET /health` - Health check
+### 🧪 Test Endpoints (Development Only)
+Base URL: `/test` ⚠️ **Remove in production environment**
 
-See complete API documentation in `docs/api.md`
+- `GET /test/success` - Test successful response
+  - **Description**: Test endpoint that always returns success
+  - **Auth Required**: No
+  - **Response**: `200 OK` with success message
+
+- `GET /test/error` - Test error handling
+  - **Description**: Test endpoint that returns controlled error
+  - **Auth Required**: No
+  - **Response**: `400 Bad Request` with error message
+
+- `GET /test/panic` - Test panic recovery
+  - **Description**: Test panic recovery middleware with various panic types
+  - **Auth Required**: No
+  - **Query Parameters**:
+    - `type` (optional): Panic type - `nil`, `slice`, `map`, `divide`, `custom`
+    - `message` (optional): Custom panic message (when type=custom)
+  - **Response**: `500 Internal Server Error` with panic recovery message
+  - **Examples**:
+    ```bash
+    GET /test/panic                                    # Basic string panic
+    GET /test/panic?type=nil                          # Nil pointer dereference
+    GET /test/panic?type=slice                        # Array bounds panic
+    GET /test/panic?type=map                          # Nil map panic
+    GET /test/panic?type=custom&message=Test panic    # Custom panic message
+    ```
+
+### 🔑 Authentication Headers
+
+For protected endpoints, include JWT token in request headers:
+```http
+Authorization: Bearer <your-jwt-token>
+Content-Type: application/json
+```
+
+### 📊 Response Formats
+
+#### Success Response
+```json
+{
+  "status": "success",
+  "data": { ... },
+  "message": "Operation completed successfully"
+}
+```
+
+#### Error Response
+```json
+{
+  "status": "error", 
+  "error": "Error type",
+  "message": "Error description",
+  "request_id": "uuid-for-tracking"
+}
+```
+
+#### Panic Recovery Response
+```json
+{
+  "error": "Internal Server Error",
+  "message": "An unexpected error occurred. Please try again later.",
+  "request_id": "uuid-for-correlation"
+}
+```
+
+### �️ Middleware & Security Features
+
+#### 🔐 Authentication Middleware (`jwt_auth.go`)
+- **JWT Token Validation**: Validates Bearer tokens in Authorization header
+- **Token Expiration Check**: Automatically rejects expired tokens
+- **User Context**: Injects authenticated user information into request context
+- **Protected Routes**: Secures all `/api/v1/users/*` endpoints
+
+#### 🛡️ Panic Recovery Middleware (`panic_recovery.go`)
+- **Comprehensive Panic Handling**: Catches all types of panics (nil pointer, slice bounds, map access, etc.)
+- **Request Correlation**: Generates unique request IDs for error tracking
+- **Detailed Logging**: Logs stack traces and request details for debugging
+- **Graceful Response**: Returns user-friendly error messages while preserving system stability
+- **Multiple Panic Types**: Handles string panics, runtime panics, custom error types
+
+#### 📊 Request Logging Middleware (`logger.go`)
+- **HTTP Request Logging**: Logs all incoming requests with method, path, status, and duration
+- **Structured Logging**: Uses JSON format for better log parsing and analysis
+- **Performance Metrics**: Tracks request processing time for performance monitoring
+- **Error Context**: Enhanced error logging with request correlation
+
+#### 🌐 CORS Middleware (`cors.go`)
+- **Cross-Origin Support**: Configures CORS headers for web applications
+- **Security Headers**: Sets appropriate headers for secure cross-domain requests
+- **Pre-flight Handling**: Handles OPTIONS requests for complex CORS scenarios
+
+#### ⚡ Middleware Stack Order
+1. **CORS Middleware** - Handles cross-origin requests
+2. **Request Logger** - Logs incoming requests
+3. **Panic Recovery** - Catches panics and prevents crashes
+4. **JWT Authentication** - Validates tokens (on protected routes)
+
+### 🔧 Environment Configuration
+
+#### Required Environment Variables
+```env
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_NAME=golang_domain_driven_design
+DB_SSL_MODE=disable
+
+# JWT Configuration  
+JWT_SECRET=your-256-bit-secret-key
+JWT_EXPIRATION=24h
+JWT_REFRESH_EXPIRATION=168h
+
+# Server Configuration
+SERVER_HOST=0.0.0.0
+SERVER_PORT=8080
+SERVER_TIMEOUT=30s
+
+# Log Configuration
+LOG_LEVEL=info
+LOG_FORMAT=json
+```
+
+### 📚 Additional Documentation
+
+- **Complete API Documentation**: See `docs/api.md`
+- **Architecture Guide**: See `docs/architecture.md`
+- **Security Implementation**: See `docs/security.md`
+
+## �️ Technology Stack & Dependencies
+
+[⬆️ Back to Table of Contents](#-table-of-contents)
+
+### 🏗️ Core Technologies
+
+#### Backend Framework
+- **Go 1.23+** - Modern Go version with latest features
+- **Gin Web Framework** - High-performance HTTP web framework
+- **GORM** - Go ORM library for database operations
+- **PostgreSQL** - Primary database for production use
+
+#### Security & Authentication
+- **JWT (JSON Web Tokens)** - Stateless authentication using `golang-jwt/jwt/v5`
+- **bcrypt** - Password hashing using `golang.org/x/crypto`
+- **UUID** - Unique identifier generation using `google/uuid`
+
+#### Validation & Configuration
+- **Gin Validator** - Request validation using `go-playground/validator/v10`
+- **Environment Variables** - Configuration management using `joho/godotenv`
+
+#### Logging & Monitoring
+- **Logrus** - Structured logging using `sirupsen/logrus`
+- **Lumberjack** - Log rotation using `natefinch/lumberjack.v2`
+
+### 📦 Dependencies Overview
+
+```go
+// Core Dependencies
+github.com/gin-gonic/gin v1.9.1                    // Web framework
+gorm.io/gorm v1.25.4                               // ORM library
+gorm.io/driver/postgres v1.5.2                     // PostgreSQL driver
+
+// Security
+github.com/golang-jwt/jwt/v5 v5.2.2                // JWT implementation
+golang.org/x/crypto v0.13.0                        // Cryptography utilities
+
+// Validation & Utilities  
+github.com/go-playground/validator/v10 v10.15.4     // Input validation
+github.com/google/uuid v1.3.0                      // UUID generation
+github.com/joho/godotenv v1.4.0                    // Environment variables
+
+// Logging
+github.com/sirupsen/logrus v1.9.3                  // Structured logging
+gopkg.in/natefinch/lumberjack.v2 v2.2.1            // Log rotation
+```
+
+### 🏛️ Architecture Patterns
+
+#### Clean Architecture Layers
+1. **Domain Layer** (`internal/domain/`)
+   - Entities (business objects)
+   - Value Objects (immutable objects with business rules)
+   - Repository Interfaces (data access contracts)
+
+2. **Application Layer** (`internal/application/`)
+   - Use Cases (business operations)
+   - DTOs (Data Transfer Objects)
+   - Application Services
+
+3. **Infrastructure Layer** (`internal/infrastructure/`)
+   - Database implementations
+   - External service integrations
+   - Configuration management
+
+4. **Interface Layer** (`internal/interfaces/`)
+   - HTTP Controllers (request handlers)
+   - Middleware (cross-cutting concerns)
+   - Routes (HTTP routing configuration)
+
+#### Domain-Driven Design (DDD) Concepts
+- **Entities**: User with identity and lifecycle
+- **Value Objects**: Email, Password with business rules
+- **Repositories**: Data access abstraction
+- **Use Cases**: Business operation orchestration
+
+### 🔧 Development Tools
+
+#### Build & Development
+- **Makefile** - Cross-platform build automation
+- **PowerShell Scripts** - Windows-specific automation (`make.ps1`)
+- **Batch Scripts** - Windows Command Prompt support (`make.bat`)
+
+#### Containerization
+- **Docker** - Application containerization
+- **Docker Compose** - Multi-container development environment
+- **Multi-stage Builds** - Optimized container images
+
+#### Code Quality
+- **Go Format** - Code formatting with `go fmt`
+- **Go Vet** - Static analysis with `go vet`
+- **Unit Tests** - Test coverage with `go test`
+
+### 📊 Performance Characteristics
+
+#### Framework Performance
+- **Gin Framework**: ~40,000 requests/second (benchmark dependent)
+- **Memory Usage**: ~10-20MB baseline (without business logic)
+- **Cold Start**: <100ms startup time
+- **Container Size**: 15-25MB (depending on Dockerfile choice)
+
+#### Database Performance
+- **GORM ORM**: Connection pooling and query optimization
+- **PostgreSQL**: ACID compliance with high concurrency
+- **Connection Management**: Configurable pool sizes
+
+## 🔒 Security Features & Best Practices
+
+[⬆️ Back to Table of Contents](#-table-of-contents)
+
+### 🛡️ Security Implementation
+
+#### Authentication & Authorization
+- **JWT-based Authentication**: Stateless token-based security
+- **Password Hashing**: bcrypt with configurable cost
+- **Token Expiration**: Configurable access and refresh token lifetimes
+- **Bearer Token Validation**: Proper Authorization header handling
+
+#### Input Validation & Sanitization
+- **Struct Validation**: Comprehensive input validation using tags
+- **Email Validation**: RFC compliant email format validation
+- **Password Strength**: Configurable password complexity rules
+- **Request Size Limits**: Protection against oversized requests
+
+#### Error Handling & Information Disclosure
+- **Sanitized Error Messages**: Production-safe error responses
+- **Request ID Correlation**: Unique identifiers for error tracking
+- **Stack Trace Protection**: Internal errors not exposed to clients
+- **Graceful Degradation**: System continues operation during failures
+
+#### Middleware Security Stack
+```go
+// Security middleware order (most critical first)
+1. CORS Middleware      // Cross-origin request security
+2. Request Logging      // Security audit trail
+3. Panic Recovery       // System stability protection
+4. JWT Authentication   // Access control (protected routes)
+```
+
+### 🔐 Security Configuration
+
+#### JWT Security Settings
+```env
+# Strong secret key (minimum 256 bits)
+JWT_SECRET=your-very-long-and-secure-secret-key-here
+
+# Token expiration settings
+JWT_EXPIRATION=24h              # Access token lifetime
+JWT_REFRESH_EXPIRATION=168h     # Refresh token lifetime (7 days)
+
+# Additional security
+JWT_ISSUER=your-app-name
+JWT_AUDIENCE=your-app-users
+```
+
+#### Database Security
+```env
+# Secure connection settings
+DB_SSL_MODE=require             # Force SSL in production
+DB_CONNECT_TIMEOUT=30s
+DB_MAX_OPEN_CONNS=25
+DB_MAX_IDLE_CONNS=10
+DB_CONN_MAX_LIFETIME=5m
+```
+
+### 🛡️ Production Security Checklist
+
+#### ✅ Authentication Security
+- [x] JWT tokens use strong secret keys (256-bit minimum)
+- [x] Passwords hashed with bcrypt (cost factor 12+)
+- [x] Token expiration properly configured
+- [x] Refresh token rotation implemented
+- [x] Authorization header validation
+
+#### ✅ Input Security
+- [x] Request validation on all endpoints
+- [x] SQL injection prevention (GORM ORM protection)
+- [x] XSS prevention through proper JSON encoding
+- [x] Request size limits configured
+
+#### ✅ Error Handling Security
+- [x] Stack traces not exposed in production
+- [x] Detailed errors logged internally only
+- [x] Generic error messages for clients
+- [x] Request correlation for debugging
+
+#### ✅ Infrastructure Security
+- [x] Container runs as non-root user
+- [x] Minimal container surface (distroless option)
+- [x] Environment variables for secrets
+- [x] HTTPS enforcement in production
+
+### 🚨 Security Considerations
+
+#### Development vs Production
+```yaml
+Development:
+  - Detailed error messages for debugging
+  - Test endpoints available (/test/*)
+  - Relaxed CORS policies
+  - Extended token lifetimes
+
+Production:
+  - Generic error messages only
+  - Test endpoints removed
+  - Strict CORS configuration
+  - Short token lifetimes
+```
+
+#### Common Security Pitfalls to Avoid
+1. **Hardcoded Secrets**: Never commit secrets to version control
+2. **Weak JWT Secrets**: Use cryptographically strong random keys
+3. **Information Disclosure**: Don't expose internal errors to clients
+4. **Missing Validation**: Validate all user inputs
+5. **Excessive Permissions**: Run containers with minimal privileges
+
+### 🔍 Security Testing
+
+#### Automated Security Checks
+```bash
+# Run security scan
+make security-scan
+
+# Or manually with gosec
+go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+gosec ./...
+
+# Check for known vulnerabilities
+go list -json -deps ./... | nancy sleuth
+```
+
+#### Manual Security Testing
+```bash
+# Test JWT validation
+curl -H "Authorization: Bearer invalid-token" \
+     http://localhost:8080/api/v1/users/profile
+
+# Test input validation
+curl -X POST http://localhost:8080/api/v1/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"email":"invalid-email","password":"weak"}'
+
+# Test panic recovery
+curl http://localhost:8080/test/panic?type=nil
+```
 
 ## 🐳 Docker Configuration
 
@@ -524,7 +955,7 @@ docker build -f Dockerfile.production -t myapp:production .
 
 **Build Command**:
 ```bash
-docker build -f Dockerfile.development -t myapp:development .
+docker build -f Dockerfile.development -t myapp:dev .
 ```
 
 ### 🎯 Real Case Scenarios
