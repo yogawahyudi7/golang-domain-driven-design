@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== SIMULASI LOG ROTATION DENGAN TANGGAL ===\n")
+	fmt.Println("=== SIMULASI LOG ROTATION DENGAN TANGGAL ===")
 
 	// 1. Simulasi hari ini (2025-07-13)
 	today := time.Date(2025, 7, 13, 14, 30, 0, 0, time.Local)

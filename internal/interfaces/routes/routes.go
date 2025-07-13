@@ -13,6 +13,7 @@ import (
 func SetupRoutes(
 	healthController *controllers.HealthController,
 	userController *controllers.UserController,
+	testController *controllers.TestController,
 	jwtService services.JWTService,
 	appLogger *logger.Logger,
 ) *gin.Engine {
@@ -22,10 +23,18 @@ func SetupRoutes(
 	// Add middleware
 	router.Use(middleware.LoggerMiddleware(appLogger))
 	router.Use(middleware.CORS())
-	router.Use(gin.Recovery())
+	router.Use(middleware.PanicRecoveryMiddleware(appLogger)) // Custom panic recovery with logging
 
 	// Health check route
 	router.GET("/health", healthController.Check)
+
+	// Test endpoints (for development only)
+	test := router.Group("/test")
+	{
+		test.GET("/panic", testController.TestPanic)
+		test.GET("/error", testController.TestError)
+		test.GET("/success", testController.TestSuccess)
+	}
 
 	// Create JWT middleware instance
 	jwtAuth := middleware.NewJWTAuth(jwtService)

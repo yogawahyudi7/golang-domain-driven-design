@@ -82,10 +82,11 @@ func main() {
 	appLogger.Info("Initializing controllers")
 	healthController := controllers.NewHealthController()
 	userController := controllers.NewUserController(userUseCase, jwtService)
+	testController := controllers.NewTestController()
 
 	// Setup routes
 	appLogger.Info("Setting up routes")
-	router := routes.SetupRoutes(healthController, userController, jwtService, appLogger)
+	router := routes.SetupRoutes(healthController, userController, testController, jwtService, appLogger)
 
 	// Create server
 	server := &http.Server{

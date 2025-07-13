@@ -15,6 +15,9 @@ import (
 // Logger represents the application logger with Logrus
 type Logger struct {
 	*logrus.Logger
+	config       *Config
+	errorWriter  io.Writer
+	accessWriter io.Writer
 }
 
 // PrettyJSONFormatter formats logs as indented JSON
@@ -44,29 +47,37 @@ func (f *PrettyJSONFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 // Config holds logger configuration
 type Config struct {
-	Level       string `json:"level" mapstructure:"level"`
-	Format      string `json:"format" mapstructure:"format"`             // json, text
-	Output      string `json:"output" mapstructure:"output"`             // stdout, file, both
-	PrettyPrint bool   `json:"pretty_print" mapstructure:"pretty_print"` // pretty print JSON logs
-	FilePath    string `json:"file_path" mapstructure:"file_path"`
-	MaxSize     int    `json:"max_size" mapstructure:"max_size"`       // MB
-	MaxBackups  int    `json:"max_backups" mapstructure:"max_backups"` // number of backup files
-	MaxAge      int    `json:"max_age" mapstructure:"max_age"`         // days
-	Compress    bool   `json:"compress" mapstructure:"compress"`
+	Level         string `json:"level" mapstructure:"level"`
+	Format        string `json:"format" mapstructure:"format"`                   // json, text
+	Output        string `json:"output" mapstructure:"output"`                   // stdout, file, both
+	PrettyPrint   bool   `json:"pretty_print" mapstructure:"pretty_print"`       // pretty print JSON logs
+	LogDir        string `json:"log_dir" mapstructure:"log_dir"`                 // log directory
+	AppLogFile    string `json:"app_log_file" mapstructure:"app_log_file"`       // main application log
+	ErrorLogFile  string `json:"error_log_file" mapstructure:"error_log_file"`   // error-only log
+	AccessLogFile string `json:"access_log_file" mapstructure:"access_log_file"` // HTTP access log
+	MaxSize       int    `json:"max_size" mapstructure:"max_size"`               // MB
+	MaxBackups    int    `json:"max_backups" mapstructure:"max_backups"`         // number of backup files
+	MaxAge        int    `json:"max_age" mapstructure:"max_age"`                 // days
+	Compress      bool   `json:"compress" mapstructure:"compress"`
+	DateFormat    string `json:"date_format" mapstructure:"date_format"` // date format for rotation
 }
 
 // DefaultConfig returns default logger configuration
 func DefaultConfig() *Config {
 	return &Config{
-		Level:       "info",
-		Format:      "json",
-		Output:      "both",
-		PrettyPrint: false, // set to true for development
-		FilePath:    "logs/app.log",
-		MaxSize:     100, // 100MB
-		MaxBackups:  5,
-		MaxAge:      30, // 30 days
-		Compress:    true,
+		Level:         "info",
+		Format:        "json",
+		Output:        "both",
+		PrettyPrint:   false, // set to true for development
+		LogDir:        "logs",
+		AppLogFile:    "app.log",
+		ErrorLogFile:  "error.log",
+		AccessLogFile: "access.log",
+		MaxSize:       100, // 100MB
+		MaxBackups:    5,
+		MaxAge:        30, // 30 days
+		Compress:      true,
+		DateFormat:    "2006-01-02", // YYYY-MM-DD format
 	}
 }
 
@@ -135,20 +146,35 @@ func New(config *Config) *Logger {
 	// Add caller info for development
 	log.SetReportCaller(true)
 
-	return &Logger{Logger: log}
+	logger := &Logger{
+		Logger: log,
+		config: config,
+	}
+
+	// Separate writers for error and access logs
+	logger.errorWriter = getLogFileWriter(config, config.ErrorLogFile)
+	logger.accessWriter = getLogFileWriter(config, config.AccessLogFile)
+
+	return logger
 }
 
-// getFileWriter creates a file writer with rotation
+// getFileWriter creates a file writer with rotation for main app log
 func getFileWriter(config *Config) io.Writer {
+	return getLogFileWriter(config, config.AppLogFile)
+}
+
+// getLogFileWriter creates a file writer for specific log file
+func getLogFileWriter(config *Config, filename string) io.Writer {
 	// Ensure log directory exists
-	logDir := filepath.Dir(config.FilePath)
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	if err := os.MkdirAll(config.LogDir, 0755); err != nil {
 		logrus.WithError(err).Error("Failed to create log directory")
 		return os.Stdout
 	}
 
+	logPath := filepath.Join(config.LogDir, filename)
+
 	return &lumberjack.Logger{
-		Filename:   config.FilePath,
+		Filename:   logPath,
 		MaxSize:    config.MaxSize,
 		MaxBackups: config.MaxBackups,
 		MaxAge:     config.MaxAge,
@@ -202,6 +228,30 @@ func (l *Logger) LogHTTPRequest(method, path, clientIP, userAgent string, status
 	} else {
 		entry.Info("HTTP request completed successfully")
 	}
+}
+
+// LogToAccessFile logs HTTP access events to separate access.log
+func (l *Logger) LogToAccessFile(method, path, clientIP, userAgent string, statusCode int, latency time.Duration, requestID string) {
+	if l.accessWriter == nil {
+		return
+	}
+
+	accessLogger := &logrus.Logger{
+		Out:       l.accessWriter,
+		Formatter: l.Logger.Formatter,
+		Level:     l.Logger.Level,
+	}
+
+	accessLogger.WithFields(logrus.Fields{
+		"request_id":  requestID,
+		"method":      method,
+		"path":        path,
+		"client_ip":   clientIP,
+		"user_agent":  userAgent,
+		"status_code": statusCode,
+		"latency_ms":  latency.Milliseconds(),
+		"type":        "http_access",
+	}).Info("HTTP access log")
 }
 
 // Database operation logging
@@ -269,4 +319,29 @@ func (l *Logger) LogPerformance(operation string, duration time.Duration, metada
 	} else {
 		entry.Debug("Operation completed quickly")
 	}
+}
+
+// LogToErrorFile logs errors to separate error.log
+func (l *Logger) LogToErrorFile(err error, context map[string]interface{}) {
+	if l.errorWriter == nil {
+		return
+	}
+
+	errorLogger := &logrus.Logger{
+		Out:       l.errorWriter,
+		Formatter: l.Logger.Formatter,
+		Level:     l.Logger.Level,
+	}
+
+	fields := logrus.Fields{
+		"error": err.Error(),
+		"type":  "application_error",
+	}
+
+	// Add context fields
+	for k, v := range context {
+		fields[k] = v
+	}
+
+	errorLogger.WithFields(fields).Error("Application error occurred")
 }

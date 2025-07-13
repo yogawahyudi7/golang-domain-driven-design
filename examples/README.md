@@ -80,6 +80,20 @@ This approach allows:
 2. **Example execution** includes specific examples: `go run -tags=example examples/filename.go`
 3. **No main function conflicts** between examples and the main application
 
+### 6. Panic Recovery Demo (`panic_recovery_demo.go`)
+Demonstrates the custom panic recovery middleware with comprehensive logging and testing.
+
+**Features shown:**
+- Automatic panic detection and recovery
+- Detailed panic logging with stack traces
+- Security and business event logging for panics
+- HTTP endpoints for testing different panic scenarios
+
+**Run with:**
+```bash
+go run -tags=example examples/panic_recovery_demo.go
+```
+
 ## Running All Examples
 
 To run all examples in sequence:
@@ -99,6 +113,9 @@ go run -tags=example examples/log_rotation_demo.go
 
 # Multi-day simulation
 go run -tags=example examples/tomorrow_simulation.go
+
+# Panic recovery testing
+go run -tags=example examples/panic_recovery_demo.go
 ```
 
 ## Output

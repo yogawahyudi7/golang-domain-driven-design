@@ -25,8 +25,19 @@ func LoggerMiddleware(log *logger.Logger) gin.HandlerFunc {
 		// Calculate latency
 		latency := time.Since(start)
 
-		// Log the request
+		// Log to main application log
 		log.LogHTTPRequest(
+			c.Request.Method,
+			c.Request.URL.Path,
+			c.ClientIP(),
+			c.Request.UserAgent(),
+			c.Writer.Status(),
+			latency,
+			requestID,
+		)
+
+		// Also log to separate access log file
+		log.LogToAccessFile(
 			c.Request.Method,
 			c.Request.URL.Path,
 			c.ClientIP(),
@@ -42,6 +53,14 @@ func LoggerMiddleware(log *logger.Logger) gin.HandlerFunc {
 				log.WithField("request_id", requestID).
 					WithError(err.Err).
 					Error("Request processing error")
+
+				// Also log to error file
+				log.LogToErrorFile(err.Err, map[string]interface{}{
+					"request_id": requestID,
+					"method":     c.Request.Method,
+					"path":       c.Request.URL.Path,
+					"client_ip":  c.ClientIP(),
+				})
 			}
 		}
 	}

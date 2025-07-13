@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== DEMONSTRASI LOG FILE NAMING BEST PRACTICES ===\n")
+	fmt.Println("=== DEMONSTRASI LOG FILE NAMING BEST PRACTICES ===")
 
 	// 1. Konfigurasi dengan multiple log files
 	config := &logger.Config{
