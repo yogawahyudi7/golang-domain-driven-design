@@ -100,7 +100,7 @@ func OptionalJWTAuthMiddleware(jwtService services.JWTService) gin.HandlerFunc {
 func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// For now, we'll implement a simple check
-		// In a real application, you would check user roles from database
+		// In a real application, we should check user roles from database
 		userEmail, exists := c.Get("user_email")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{

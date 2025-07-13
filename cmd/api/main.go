@@ -21,51 +21,71 @@ import (
 )
 
 func main() {
-	// Initialize logger
-	appLogger := logger.New()
-
-	// Load environment variables
+	// Load environment variables first
 	if err := godotenv.Load(); err != nil {
-		appLogger.Warn("No .env file found, using environment variables")
+		// We can't log this yet as logger needs config
+		// But .env file is optional, so we continue
 	}
 
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
-		appLogger.Fatal("Failed to load configuration:", err)
+		panic("Failed to load configuration: " + err.Error())
+	}
+
+	// Initialize logger with configuration
+	appLogger := logger.New(cfg.Logger)
+
+	appLogger.WithFields(map[string]interface{}{
+		"app_name": cfg.App.Name,
+		"env":      cfg.App.Env,
+		"version":  "1.0.0",
+	}).Info("Starting application")
+
+	// Log environment info
+	if err := godotenv.Load(); err != nil {
+		appLogger.Warn("No .env file found, using environment variables")
 	}
 
 	// Initialize database
+	appLogger.Info("Initializing database connection")
 	db, err := database.NewDatabase(cfg)
 	if err != nil {
-		appLogger.Fatal("Failed to initialize database:", err)
+		appLogger.WithError(err).Fatal("Failed to initialize database")
 	}
 	defer func() {
+		appLogger.Info("Closing database connection")
 		if err := db.Close(); err != nil {
-			appLogger.Error("Failed to close database:", err)
+			appLogger.WithError(err).Error("Failed to close database")
 		}
 	}()
 
 	// Run database migrations
+	appLogger.Info("Running database migrations")
 	if err := db.Migrate(); err != nil {
-		appLogger.Fatal("Failed to run database migrations:", err)
+		appLogger.WithError(err).Fatal("Failed to run database migrations")
 	}
 
 	// Initialize repositories
+	appLogger.Info("Initializing repositories")
 	userRepo := repositories.NewUserRepository(db.DB)
 
 	// Initialize use cases
+	appLogger.Info("Initializing use cases")
 	userUseCase := usecases.NewUserUseCase(userRepo)
 
 	// Initialize services
+	appLogger.Info("Initializing services")
 	jwtService := services.NewJWTService(cfg)
 
 	// Initialize controllers
+	appLogger.Info("Initializing controllers")
 	healthController := controllers.NewHealthController()
 	userController := controllers.NewUserController(userUseCase, jwtService)
 
 	// Setup routes
-	router := routes.SetupRoutes(healthController, userController, jwtService)
+	appLogger.Info("Setting up routes")
+	router := routes.SetupRoutes(healthController, userController, jwtService, appLogger)
 
 	// Create server
 	server := &http.Server{
@@ -78,9 +98,9 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		appLogger.Info("Server starting on", cfg.GetServerAddress())
+		appLogger.WithField("address", cfg.GetServerAddress()).Info("Server starting")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			appLogger.Fatal("Failed to start server:", err)
+			appLogger.WithError(err).Fatal("Failed to start server")
 		}
 	}()
 
@@ -89,15 +109,15 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	appLogger.Info("Server shutting down...")
+	appLogger.Info("Shutdown signal received, starting graceful shutdown...")
 
 	// Give the server 30 seconds to finish the request it is currently handling
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		appLogger.Fatal("Server forced to shutdown:", err)
+		appLogger.WithError(err).Fatal("Server forced to shutdown")
 	}
 
-	appLogger.Info("Server exited")
+	appLogger.Info("Server exited gracefully")
 }

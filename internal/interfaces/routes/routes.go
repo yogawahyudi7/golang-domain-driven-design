@@ -4,6 +4,7 @@ import (
 	"golang-domain-driven-design/internal/application/services"
 	"golang-domain-driven-design/internal/interfaces/controllers"
 	"golang-domain-driven-design/internal/interfaces/middleware"
+	"golang-domain-driven-design/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,12 +14,13 @@ func SetupRoutes(
 	healthController *controllers.HealthController,
 	userController *controllers.UserController,
 	jwtService services.JWTService,
+	appLogger *logger.Logger,
 ) *gin.Engine {
 	// Create gin router
 	router := gin.New()
 
 	// Add middleware
-	router.Use(middleware.Logger())
+	router.Use(middleware.LoggerMiddleware(appLogger))
 	router.Use(middleware.CORS())
 	router.Use(gin.Recovery())
 

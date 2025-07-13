@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"golang-domain-driven-design/pkg/logger"
 )
 
 // Config represents the application configuration
@@ -13,6 +15,7 @@ type Config struct {
 	Server   ServerConfig
 	JWT      JWTConfig
 	App      AppConfig
+	Logger   *logger.Config
 }
 
 // DatabaseConfig represents database configuration
@@ -81,6 +84,17 @@ func Load() (*Config, error) {
 			Name: getEnv("APP_NAME", "golang-domain-driven-design"),
 			Env:  getEnv("APP_ENV", "development"),
 		},
+		Logger: &logger.Config{
+			Level:       getEnv("LOG_LEVEL", "info"),
+			Format:      getEnv("LOG_FORMAT", "json"),
+			Output:      getEnv("LOG_OUTPUT", "both"),
+			PrettyPrint: getEnvBool("LOG_PRETTY_PRINT", false),
+			FilePath:    getEnv("LOG_FILE_PATH", "logs/app.log"),
+			MaxSize:     getEnvInt("LOG_MAX_SIZE", 100),
+			MaxBackups:  getEnvInt("LOG_MAX_BACKUPS", 5),
+			MaxAge:      getEnvInt("LOG_MAX_AGE", 30),
+			Compress:    getEnvBool("LOG_COMPRESS", true),
+		},
 	}, nil
 }
 
@@ -106,6 +120,26 @@ func (c *Config) GetServerAddress() string {
 func getEnv(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return fallback
+}
+
+// getEnvInt gets environment variable as int with fallback
+func getEnvInt(key string, fallback int) int {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
+	}
+	return fallback
+}
+
+// getEnvBool gets environment variable as bool with fallback
+func getEnvBool(key string, fallback bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if boolValue, err := strconv.ParseBool(value); err == nil {
+			return boolValue
+		}
 	}
 	return fallback
 }
