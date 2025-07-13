@@ -1,7 +1,7 @@
 //go:build example
 // +build example
 
-package main //nolint:errcheck
+package main
 
 import (
 	"fmt"
