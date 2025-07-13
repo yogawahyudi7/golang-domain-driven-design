@@ -38,6 +38,8 @@ Proyek ini mengimplementasikan Clean Architecture dengan Domain-Driven Design (D
 ### 🏛️ Architecture & API
 - [🏛️ Architecture Principles](#️-architecture-principles)
 - [📡 API Endpoints](#-api-endpoints)
+- [🛠️ Technology Stack & Dependencies](#️-technology-stack--dependencies)
+- [🔒 Security Features & Best Practices](#-security-features--best-practices)
 - [🔗 Features](#-features)
 
 ### 🐳 Docker & Deployment
@@ -448,256 +450,450 @@ Jika tidak ingin install `make`, gunakan script yang sudah disediakan:
 
 ## 📡 API Endpoints
 
-### Authentication
-- `POST /api/v1/auth/login` - Login user
+### 🏥 Health Check
+- `GET /health` - Status kesehatan aplikasi
+  - **Deskripsi**: Memeriksa apakah aplikasi berjalan dan sehat
+  - **Auth Required**: Tidak
+  - **Response**: `200 OK` dengan status kesehatan
 
-### Users
-- `POST /api/v1/users` - Create user
-- `GET /api/v1/users` - List users (dengan pagination)
-- `GET /api/v1/users/:id` - Get user by ID
+### 🔐 Authentication Endpoints
+Base URL: `/api/v1/auth`
+
+- `POST /api/v1/auth/register` - Daftar user baru
+  - **Deskripsi**: Membuat akun user baru
+  - **Auth Required**: Tidak
+  - **Body**: `{ "email": "string", "username": "string", "password": "string", "first_name": "string", "last_name": "string" }`
+  - **Response**: `201 Created` dengan data user
+
+- `POST /api/v1/auth/login` - Autentikasi user
+  - **Deskripsi**: Autentikasi user dan mendapatkan JWT token
+  - **Auth Required**: Tidak
+  - **Body**: `{ "email": "string", "password": "string" }`
+  - **Response**: `200 OK` dengan access dan refresh token
+
+- `POST /api/v1/auth/refresh` - Refresh access token
+  - **Deskripsi**: Mendapatkan access token baru menggunakan refresh token
+  - **Auth Required**: Ya (Refresh Token)
+  - **Body**: `{ "refresh_token": "string" }`
+  - **Response**: `200 OK` dengan access token baru
+
+### 👥 User Management Endpoints
+Base URL: `/api/v1/users` (🔒 **Semua endpoint memerlukan autentikasi JWT**)
+
+- `GET /api/v1/users/profile` - Dapatkan profil user saat ini
+  - **Deskripsi**: Mendapatkan informasi profil user yang terautentikasi
+  - **Auth Required**: Ya (JWT Bearer Token)
+  - **Response**: `200 OK` dengan data profil user
+
+- `POST /api/v1/users` - Buat user baru
+  - **Deskripsi**: Membuat user baru (fungsi admin)
+  - **Auth Required**: Ya (JWT Bearer Token)
+  - **Body**: `{ "email": "string", "username": "string", "password": "string", "first_name": "string", "last_name": "string" }`
+  - **Response**: `201 Created` dengan data user
+
+- `GET /api/v1/users` - Daftar semua user
+  - **Deskripsi**: Mendapatkan daftar user dengan pagination
+  - **Auth Required**: Ya (JWT Bearer Token)
+  - **Query Parameters**: 
+    - `page` (opsional): Nomor halaman untuk pagination
+    - `limit` (opsional): Jumlah item per halaman
+  - **Response**: `200 OK` dengan daftar user dan info pagination
+
+- `GET /api/v1/users/:id` - Dapatkan user berdasarkan ID
+  - **Deskripsi**: Mendapatkan user spesifik berdasarkan ID mereka
+  - **Auth Required**: Ya (JWT Bearer Token)
+  - **Path Parameters**: `id` - User ID
+  - **Response**: `200 OK` dengan data user
+
 - `PUT /api/v1/users/:id` - Update user
-- `DELETE /api/v1/users/:id` - Delete user
+  - **Deskripsi**: Update informasi user
+  - **Auth Required**: Ya (JWT Bearer Token)
+  - **Path Parameters**: `id` - User ID
+  - **Body**: `{ "email": "string", "username": "string", "first_name": "string", "last_name": "string" }`
+  - **Response**: `200 OK` dengan data user yang diupdate
 
-### Health Check
-- `GET /health` - Health check
+- `DELETE /api/v1/users/:id` - Hapus user
+  - **Deskripsi**: Menghapus akun user
+  - **Auth Required**: Ya (JWT Bearer Token)
+  - **Path Parameters**: `id` - User ID
+  - **Response**: `204 No Content`
 
-Lihat dokumentasi lengkap API di `docs/api.md`
+### 🧪 Test Endpoints (Development Only)
+Base URL: `/test` ⚠️ **Hapus di environment production**
 
-## 🐳 Docker Configuration
+- `GET /test/success` - Test response sukses
+  - **Deskripsi**: Test endpoint yang selalu mengembalikan sukses
+  - **Auth Required**: Tidak
+  - **Response**: `200 OK` dengan pesan sukses
+
+- `GET /test/error` - Test error handling
+  - **Deskripsi**: Test endpoint yang mengembalikan error terkontrol
+  - **Auth Required**: Tidak
+  - **Response**: `400 Bad Request` dengan pesan error
+
+- `GET /test/panic` - Test panic recovery
+  - **Deskripsi**: Test panic recovery middleware dengan berbagai tipe panic
+  - **Auth Required**: Tidak
+  - **Query Parameters**:
+    - `type` (opsional): Tipe panic - `nil`, `slice`, `map`, `divide`, `custom`
+    - `message` (opsional): Pesan panic kustom (ketika type=custom)
+  - **Response**: `500 Internal Server Error` dengan pesan panic recovery
+  - **Contoh**:
+    ```bash
+    GET /test/panic                                    # Basic string panic
+    GET /test/panic?type=nil                          # Nil pointer dereference
+    GET /test/panic?type=slice                        # Array bounds panic
+    GET /test/panic?type=map                          # Nil map panic
+    GET /test/panic?type=custom&message=Test panic    # Custom panic message
+    ```
+
+### 🔑 Authentication Headers
+
+Untuk endpoint yang dilindungi, sertakan JWT token di request header:
+```http
+Authorization: Bearer <your-jwt-token>
+Content-Type: application/json
+```
+
+### 📊 Format Response
+
+#### Success Response
+```json
+{
+  "status": "success",
+  "data": { ... },
+  "message": "Operasi berhasil diselesaikan"
+}
+```
+
+#### Error Response
+```json
+{
+  "status": "error", 
+  "error": "Tipe error",
+  "message": "Deskripsi error",
+  "request_id": "uuid-untuk-tracking"
+}
+```
+
+#### Panic Recovery Response
+```json
+{
+  "error": "Internal Server Error",
+  "message": "Terjadi kesalahan tak terduga. Silakan coba lagi nanti.",
+  "request_id": "uuid-untuk-korelasi"
+}
+```
+
+### 🛡️ Middleware & Security Features
+
+#### 🔐 Authentication Middleware (`jwt_auth.go`)
+- **Validasi JWT Token**: Memvalidasi Bearer token di Authorization header
+- **Pengecekan Expiration Token**: Otomatis menolak token yang expired
+- **User Context**: Menyuntikkan informasi user terautentikasi ke request context
+- **Protected Routes**: Mengamankan semua endpoint `/api/v1/users/*`
+
+#### 🛡️ Panic Recovery Middleware (`panic_recovery.go`)
+- **Penanganan Panic Komprehensif**: Menangkap semua tipe panic (nil pointer, slice bounds, map access, dll.)
+- **Request Correlation**: Menghasilkan request ID unik untuk tracking error
+- **Logging Detail**: Log stack traces dan detail request untuk debugging
+- **Response Graceful**: Mengembalikan pesan error yang user-friendly sambil menjaga stabilitas sistem
+- **Multiple Panic Types**: Menangani string panic, runtime panic, custom error types
+
+#### 📊 Request Logging Middleware (`logger.go`)
+- **HTTP Request Logging**: Log semua request masuk dengan method, path, status, dan durasi
+- **Structured Logging**: Menggunakan format JSON untuk parsing dan analisis log yang lebih baik
+- **Performance Metrics**: Melacak waktu pemrosesan request untuk monitoring performa
+- **Error Context**: Enhanced error logging dengan korelasi request
+
+#### 🌐 CORS Middleware (`cors.go`)
+- **Cross-Origin Support**: Mengkonfigurasi CORS header untuk aplikasi web
+- **Security Headers**: Menetapkan header yang sesuai untuk request cross-domain yang aman
+- **Pre-flight Handling**: Menangani request OPTIONS untuk skenario CORS kompleks
+
+#### ⚡ Middleware Stack Order
+1. **CORS Middleware** - Menangani cross-origin requests
+2. **Request Logger** - Log request masuk
+3. **Panic Recovery** - Menangkap panic dan mencegah crash
+4. **JWT Authentication** - Validasi token (pada route yang dilindungi)
+
+### 🔧 Environment Configuration
+
+#### Required Environment Variables
+```env
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_NAME=golang_domain_driven_design
+DB_SSL_MODE=disable
+
+# JWT Configuration  
+JWT_SECRET=your-256-bit-secret
+JWT_EXPIRATION=24h
+JWT_REFRESH_EXPIRATION=168h
+
+# Server Configuration
+SERVER_HOST=0.0.0.0
+SERVER_PORT=8080
+SERVER_TIMEOUT=30s
+
+# Log Configuration
+LOG_LEVEL=info
+LOG_FORMAT=json
+```
+
+### 📚 Dokumentasi Tambahan
+
+- **Dokumentasi API Lengkap**: Lihat `docs/api.md`
+- **Panduan Arsitektur**: Lihat `docs/architecture.md`
+- **Implementasi Keamanan**: Lihat `docs/security.md`
+
+## 🛠️ Technology Stack & Dependencies
 
 [⬆️ Kembali ke Daftar Isi](#-daftar-isi)
 
-Proyek ini menyediakan **dua konfigurasi Dockerfile** yang berbeda untuk memenuhi kebutuhan development dan production:
+### 🏗️ Teknologi Inti
 
-### 📋 Docker Configuration Overview
+#### Backend Framework
+- **Go 1.23+** - Versi Go modern dengan fitur terbaru
+- **Gin Web Framework** - Framework HTTP web berperforma tinggi
+- **GORM** - Library Go ORM untuk operasi database
+- **PostgreSQL** - Database utama untuk produksi
 
-| Aspect | Dockerfile.development | Dockerfile.production |
-|--------|----------------------|---------------------|
-| **Base Image** | `alpine:3.20` | `gcr.io/distroless/static-debian12:nonroot` |
-| **Primary Use** | Development & Debugging | Production & Maximum Security |
-| **Image Size** | ~25MB | ~15MB |
-| **Shell Access** | ✅ Available | ❌ Not Available |
-| **Debugging Tools** | ✅ Full Alpine toolset | ❌ Minimal surface |
-| **Security Level** | 🔒 Secure | 🔒🔒🔒 Maximum Security |
-| **Health Check** | `wget` based | Application based |
-| **Signal Handling** | `dumb-init` | Built-in |
+#### Security & Authentication
+- **JWT (JSON Web Tokens)** - Autentikasi stateless menggunakan `golang-jwt/jwt/v5`
+- **bcrypt** - Hashing password menggunakan `golang.org/x/crypto`
+- **UUID** - Generasi identifier unik menggunakan `google/uuid`
 
-### 🚀 Dockerfile.production (Recommended for Production)
+#### Validation & Configuration
+- **Gin Validator** - Validasi request menggunakan `go-playground/validator/v10`
+- **Environment Variables** - Manajemen konfigurasi menggunakan `joho/godotenv`
 
-**Tujuan**: Keamanan maksimal dengan minimal attack surface
+#### Logging & Monitoring
+- **Logrus** - Structured logging menggunakan `sirupsen/logrus`
+- **Lumberjack** - Rotasi log menggunakan `natefinch/lumberjack.v2`
 
-**Karakteristik**:
-- ✅ **Distroless Image**: Menggunakan Google Distroless untuk keamanan maksimal
-- ✅ **Minimal Attack Surface**: Tidak ada shell, package manager, atau tools
-- ✅ **Smallest Size**: Image yang paling kecil (~15MB)
-- ✅ **Zero CVE**: Hampir tidak ada vulnerability
-- ❌ **No Shell Access**: Tidak bisa exec ke container untuk debugging
+### 📦 Overview Dependencies
 
-**Kapan Digunakan**:
-- Production environment
-- High security requirements
-- Compliance dengan security standards
-- Aplikasi yang sudah mature dan stable
+```go
+// Core Dependencies
+github.com/gin-gonic/gin v1.9.1                    // Web framework
+gorm.io/gorm v1.25.4                               // ORM library
+gorm.io/driver/postgres v1.5.2                     // PostgreSQL driver
 
-**Build Command**:
-```bash
-docker build -f Dockerfile.production -t myapp:production .
+// Security
+github.com/golang-jwt/jwt/v5 v5.2.2                // Implementasi JWT
+golang.org/x/crypto v0.13.0                        // Utilitas kriptografi
+
+// Validation & Utilities  
+github.com/go-playground/validator/v10 v10.15.4     // Validasi input
+github.com/google/uuid v1.3.0                      // Generasi UUID
+github.com/joho/godotenv v1.4.0                    // Environment variables
+
+// Logging
+github.com/sirupsen/logrus v1.9.3                  // Structured logging
+gopkg.in/natefinch/lumberjack.v2 v2.2.1            // Rotasi log
 ```
 
-### 🛠️ Dockerfile.development (Recommended for Development)
+### 🏛️ Architecture Patterns
 
-**Tujuan**: Flexibility untuk development dan debugging
+#### Clean Architecture Layers
+1. **Domain Layer** (`internal/domain/`)
+   - Entities (objek bisnis)
+   - Value Objects (objek immutable dengan aturan bisnis)
+   - Repository Interfaces (kontrak akses data)
 
-**Karakteristik**:
-- ✅ **Alpine Linux**: Base image yang lengkap dengan tools
-- ✅ **Shell Access**: Bisa exec ke container untuk debugging
-- ✅ **Debugging Tools**: wget, netstat, ps, dan tools Alpine lainnya
-- ✅ **dumb-init**: Proper signal handling
-- ⚠️ **Larger Size**: Sedikit lebih besar (~25MB)
-- ⚠️ **More Attack Surface**: Lebih banyak package yang terinstall
+2. **Application Layer** (`internal/application/`)
+   - Use Cases (operasi bisnis)
+   - DTOs (Data Transfer Objects)
+   - Application Services
 
-**Kapan Digunakan**:
-- Development environment
-- Staging environment
-- Troubleshooting dan debugging
-- Tim yang masih learning containers
+3. **Infrastructure Layer** (`internal/infrastructure/`)
+   - Implementasi database
+   - Integrasi layanan eksternal
+   - Manajemen konfigurasi
 
-**Build Command**:
-```bash
-docker build -f Dockerfile.development -t myapp:development .
+4. **Interface Layer** (`internal/interfaces/`)
+   - HTTP Controllers (penanganan request)
+   - Middleware (cross-cutting concerns)
+   - Routes (konfigurasi routing HTTP)
+
+#### Domain-Driven Design (DDD) Concepts
+- **Entities**: User dengan identitas dan lifecycle
+- **Value Objects**: Email, Password dengan aturan bisnis
+- **Repositories**: Abstraksi akses data
+- **Use Cases**: Orkestrasi operasi bisnis
+
+### 🔧 Development Tools
+
+#### Build & Development
+- **Makefile** - Otomasi build cross-platform
+- **PowerShell Scripts** - Otomasi khusus Windows (`make.ps1`)
+- **Batch Scripts** - Dukungan Windows Command Prompt (`make.bat`)
+
+#### Containerization
+- **Docker** - Kontainerisasi aplikasi
+- **Docker Compose** - Environment development multi-container
+- **Multi-stage Builds** - Image container yang dioptimalkan
+
+#### Code Quality
+- **Go Format** - Format kode dengan `go fmt`
+- **Go Vet** - Analisis statis dengan `go vet`
+- **Unit Tests** - Test coverage dengan `go test`
+
+### 📊 Karakteristik Performa
+
+#### Framework Performance
+- **Gin Framework**: ~40,000 requests/detik (tergantung benchmark)
+- **Memory Usage**: ~10-20MB baseline (tanpa business logic)
+- **Cold Start**: <100ms startup time
+- **Container Size**: 15-25MB (tergantung pilihan Dockerfile)
+
+#### Database Performance
+- **GORM ORM**: Connection pooling dan optimasi query
+- **PostgreSQL**: ACID compliance dengan concurrency tinggi
+- **Connection Management**: Ukuran pool yang dapat dikonfigurasi
+
+## 🔒 Security Features & Best Practices
+
+[⬆️ Kembali ke Daftar Isi](#-daftar-isi)
+
+### 🛡️ Implementasi Keamanan
+
+#### Authentication & Authorization
+- **Autentikasi Berbasis JWT**: Keamanan berbasis token stateless
+- **Password Hashing**: bcrypt dengan cost yang dapat dikonfigurasi
+- **Token Expiration**: Masa hidup access dan refresh token yang dapat dikonfigurasi
+- **Validasi Bearer Token**: Penanganan Authorization header yang tepat
+
+#### Input Validation & Sanitization
+- **Validasi Struct**: Validasi input komprehensif menggunakan tag
+- **Validasi Email**: Validasi format email yang RFC compliant
+- **Password Strength**: Aturan kompleksitas password yang dapat dikonfigurasi
+- **Request Size Limits**: Perlindungan terhadap request berukuran besar
+
+#### Error Handling & Information Disclosure
+- **Pesan Error Sanitized**: Response error yang aman untuk produksi
+- **Request ID Correlation**: Identifier unik untuk tracking error
+- **Stack Trace Protection**: Error internal tidak diekspos ke klien
+- **Graceful Degradation**: Sistem tetap beroperasi selama kegagalan
+
+#### Middleware Security Stack
+```go
+// Urutan middleware keamanan (paling kritis dulu)
+1. CORS Middleware      // Keamanan request cross-origin
+2. Request Logging      // Audit trail keamanan
+3. Panic Recovery       // Perlindungan stabilitas sistem
+4. JWT Authentication   // Kontrol akses (route yang dilindungi)
 ```
 
-### 🎯 Real Case Scenarios
+### 🔐 Konfigurasi Keamanan
 
-#### Scenario 1: Production Deployment
-```bash
-# Build for production (maximum security)
-docker build -f Dockerfile.production -t myapp:prod .
-docker run -d --name myapp-prod myapp:prod
+#### JWT Security Settings
+```env
+# Strong secret key (minimum 256 bits)
+JWT_SECRET=your-very-long-and-secure-secret-key-here
 
-# Health check menggunakan aplikasi sendiri
-docker exec myapp-prod /app/main --health-check
+# Token expiration settings
+JWT_EXPIRATION=24h              # Masa hidup access token
+JWT_REFRESH_EXPIRATION=168h     # Masa hidup refresh token (7 hari)
+
+# Additional security
+JWT_ISSUER=your-app-name
+JWT_AUDIENCE=your-app-users
 ```
 
-#### Scenario 2: Development & Debugging
-```bash
-# Build for development (easy debugging)
-docker build -f Dockerfile.development -t myapp:dev .
-docker run -d --name myapp-dev myapp:dev
-
-# Debug dengan shell access
-docker exec -it myapp-dev /bin/sh
-/app $ ps aux                    # Lihat running processes
-/app $ netstat -ln              # Check network connections
-/app $ cat /proc/meminfo        # Check memory usage
-/app $ wget -qO- http://localhost:8080/health  # Manual health check
+#### Database Security
+```env
+# Pengaturan koneksi aman
+DB_SSL_MODE=require             # Paksa SSL di produksi
+DB_CONNECT_TIMEOUT=30s
+DB_MAX_OPEN_CONNS=25
+DB_MAX_IDLE_CONNS=10
+DB_CONN_MAX_LIFETIME=5m
 ```
 
-#### Scenario 3: Security Scanning Comparison
-```bash
-# Scan production image (minimal vulnerabilities)
-docker scan myapp:prod
-# Result: 0-1 vulnerabilities
+### 🛡️ Production Security Checklist
 
-# Scan development image (more packages = more potential issues)  
-docker scan myapp:dev
-# Result: 2-5 vulnerabilities (non-critical)
-```
+#### ✅ Authentication Security
+- [x] JWT token menggunakan secret key yang kuat (minimum 256-bit)
+- [x] Password di-hash dengan bcrypt (cost factor 12+)
+- [x] Token expiration dikonfigurasi dengan tepat
+- [x] Refresh token rotation diimplementasikan
+- [x] Validasi authorization header
 
-### 📊 Performance Comparison
+#### ✅ Input Security
+- [x] Validasi request pada semua endpoint
+- [x] Pencegahan SQL injection (perlindungan GORM ORM)
+- [x] Pencegahan XSS melalui JSON encoding yang tepat
+- [x] Request size limit dikonfigurasi
 
-[⬆️ Kembali ke Daftar Isi](#-daftar-isi) | [🚀 Quick Start](#-quick-start) | [🐳 Docker Guide](#-docker-configuration-guide)
+#### ✅ Error Handling Security
+- [x] Stack trace tidak diekspos di produksi
+- [x] Error detail hanya di-log secara internal
+- [x] Pesan error generik untuk klien
+- [x] Request correlation untuk debugging
 
-| Metric | Development | Production |
-|--------|------------|------------|
-| **Build Time** | ~2-3 minutes | ~2-3 minutes |
-| **Image Size** | 25MB | 15MB |
-| **Startup Time** | ~1-2 seconds | ~1 second |
-| **Memory Usage** | 20-30MB | 15-25MB |
-| **Security Score** | Good (8/10) | Excellent (10/10) |
+#### ✅ Infrastructure Security
+- [x] Container berjalan sebagai non-root user
+- [x] Minimal container surface (opsi distroless)
+- [x] Environment variables untuk secrets
+- [x] HTTPS enforcement di produksi
 
-### 🚀 Quick Start Commands
+### 🚨 Pertimbangan Keamanan
 
-#### Development Environment
-```bash
-# Build development image
-docker build -f Dockerfile.development -t golang-ddd:dev .
-
-# Run with docker-compose (development)
-docker-compose -f docker-compose.yml up -d
-
-# Debug container
-docker exec -it golang-ddd_app_1 /bin/sh
-```
-
-#### Production Environment
-```bash
-# Build production image  
-docker build -f Dockerfile.production -t golang-ddd:prod .
-
-# Run with docker-compose (production)
-docker-compose -f docker-compose.prod.yml up -d
-
-# Check health (no shell access)
-docker logs golang-ddd_app_1
-```
-
-### ⚡ Best Practices
-
-#### 🔄 Development Workflow
-```bash
-# 1. Develop dengan development image
-docker build -f Dockerfile.development -t myapp:dev .
-docker run -it myapp:dev
-
-# 2. Test dengan production image sebelum deploy
-docker build -f Dockerfile.production -t myapp:prod .  
-docker run myapp:prod
-
-# 3. Deploy ke production
-docker tag myapp:prod registry.example.com/myapp:latest
-docker push registry.example.com/myapp:latest
-```
-
-#### 🛡️ Security Best Practices
-```bash
-# Scan images before deployment
-trivy image myapp:prod
-docker scout cves myapp:prod
-
-# Use specific tags, avoid :latest in production
-docker build -f Dockerfile.production -t myapp:v1.2.3 .
-
-# Run with security constraints
-docker run --read-only --tmpfs /tmp myapp:v1.2.3
-```
-
-### 🔧 Customization
-
-#### Modify Development Image
-```dockerfile
-# Add custom debugging tools to Dockerfile.development
-RUN apk add --no-cache \
-    curl \
-    jq \
-    htop \
-    nano
-```
-
-#### Modify Production Image
-```dockerfile
-# Production image should remain minimal
-# Only add if absolutely necessary for production
-```
-
-### 🐳 Docker Compose Integration
-
+#### Development vs Production
 ```yaml
-# docker-compose.yml (Development)
-version: '3.8'
-services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile.development
-    ports:
-      - "8080:8080"
-    environment:
-      - APP_ENV=development
+Development:
+  - Pesan error detail untuk debugging
+  - Test endpoint tersedia (/test/*)
+  - Kebijakan CORS yang rileks
+  - Masa hidup token yang diperpanjang
 
-# docker-compose.prod.yml (Production)  
-version: '3.8'
-services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile.production
-    ports:
-      - "8080:8080"
-    environment:
-      - APP_ENV=production
-    read_only: true
-    tmpfs:
-      - /tmp
+Production:
+  - Pesan error generik saja
+  - Test endpoint dihapus
+  - Konfigurasi CORS yang ketat
+  - Masa hidup token yang pendek
 ```
 
-### 📈 Monitoring & Observability
+#### Pitfall Keamanan yang Harus Dihindari
+1. **Hardcoded Secrets**: Jangan commit secrets ke version control
+2. **JWT Secret Lemah**: Gunakan key random yang kuat secara kriptografis
+3. **Information Disclosure**: Jangan ekspos error internal ke klien
+4. **Missing Validation**: Validasi semua input user
+5. **Excessive Permissions**: Jalankan container dengan privilege minimal
 
-#### Development Monitoring
+### 🔍 Security Testing
+
+#### Automated Security Checks
 ```bash
-# Easy debugging with shell access
-docker exec -it myapp-dev /bin/sh
-/app $ top                      # Real-time process monitoring
-/app $ df -h                   # Disk usage  
-/app $ free -m                 # Memory usage
+# Jalankan security scan
+make security-scan
+
+# Atau manual dengan gosec
+go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+gosec ./...
+
+# Periksa vulnerability yang dikenal
+go list -json -deps ./... | nancy sleuth
 ```
 
-#### Production Monitoring
+#### Manual Security Testing
 ```bash
-# Use external monitoring tools
-docker stats myapp-prod         # Container stats
-docker logs myapp-prod         # Application logs
-# Use APM tools like Prometheus, Grafana, etc.
+# Test validasi JWT
+curl -H "Authorization: Bearer invalid-token" \
+     http://localhost:8080/api/v1/users/profile
+
+# Test validasi input
+curl -X POST http://localhost:8080/api/v1/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"email":"invalid-email","password":"weak"}'
+
+# Test panic recovery
+curl http://localhost:8080/test/panic?type=nil
 ```
 
 ## 🔧 Configuration
@@ -738,75 +934,91 @@ This project is licensed under the MIT License.
 - ✅ RESTful API dengan Gin framework
 - ✅ GORM untuk database ORM
 - ✅ PostgreSQL support
-- ✅ JWT Authentication (placeholder)
-- ✅ Input validation
-- ✅ Error handling
-- ✅ Logging middleware
-- ✅ CORS support
-- ✅ Docker containerization
-- ✅ Unit tests
-- ✅ Environment configuration
+- ✅ JWT Authentication dengan middleware
+- ✅ Panic Recovery middleware yang komprehensif
+- ✅ Input validation dengan struct tags
+- ✅ Error handling dengan request correlation
+- ✅ Structured logging dengan Logrus
+- ✅ CORS support untuk aplikasi web
+- ✅ Docker containerization (development & production)
+- ✅ Multi-stage Docker builds untuk optimasi
+- ✅ Security-focused container images (distroless)
+- ✅ Unit tests dengan coverage
+- ✅ Environment configuration management
 - ✅ Database migrations
 - ✅ Graceful shutdown
+- ✅ Request logging middleware
+- ✅ Health check endpoints
+- ✅ Test endpoints untuk development
+- ✅ Cross-platform build scripts (make, PowerShell, batch)
+- ✅ Security best practices documentation
+- ✅ Comprehensive API documentation
 
 ## 🚀 Next Steps
 
-- [ ] Implement JWT authentication
-- [ ] Add more comprehensive tests
-- [ ] Add API documentation with Swagger
-- [ ] Implement caching
-- [ ] Add monitoring dan metrics
+- [ ] Implementasi JWT authentication yang lebih lengkap
+- [ ] Tambah test yang lebih komprehensif
+- [ ] Tambah dokumentasi API dengan Swagger/OpenAPI
+- [ ] Implementasi caching (Redis)
+- [ ] Tambah monitoring dan metrics (Prometheus/Grafana)
 - [ ] CI/CD pipeline dengan multi-stage Docker builds
-- [ ] Rate limiting
-- [ ] Request tracing
+- [ ] Rate limiting middleware
+- [ ] Request tracing dan distributed tracing
+- [ ] Database connection pooling yang optimal
+- [ ] API versioning strategy
+- [ ] Background job processing
+- [ ] File upload/download functionality
+- [ ] Advanced pagination dan filtering
+- [ ] Role-based access control (RBAC)
+- [ ] Audit logging untuk compliance
 
 ## 📖 Docker Configuration Guide
 
 [⬆️ Kembali ke Daftar Isi](#-daftar-isi)
 
-### 🎯 Choosing the Right Dockerfile
+### 🎯 Memilih Dockerfile yang Tepat
 
-#### Use `Dockerfile.production` when:
-- ✅ Deploying to production environment
-- ✅ Security compliance is required
-- ✅ Application is stable and well-tested
-- ✅ Minimal attack surface is priority
-- ✅ Image size optimization is important
+#### Gunakan `Dockerfile.production` ketika:
+- ✅ Deploy ke production environment
+- ✅ Security compliance diperlukan
+- ✅ Aplikasi stabil dan sudah ditest dengan baik
+- ✅ Minimal attack surface menjadi prioritas
+- ✅ Optimasi ukuran image penting
 
-#### Use `Dockerfile.development` when:
-- ✅ Local development and testing
-- ✅ Staging environment setup
-- ✅ Debugging is frequently needed
+#### Gunakan `Dockerfile.development` ketika:
+- ✅ Development dan testing lokal
+- ✅ Setup staging environment
+- ✅ Debugging sering diperlukan
 - ✅ Learning container technologies
-- ✅ Troubleshooting application issues
+- ✅ Troubleshooting aplikasi
 
 ### 🔄 Development to Production Workflow
 
 ```bash
-# 1. Develop and test locally
+# 1. Develop dan test secara lokal
 docker build -f Dockerfile.development -t myapp:dev .
 docker run -p 8080:8080 myapp:dev
 
-# 2. Debug if needed
+# 2. Debug jika diperlukan
 docker exec -it myapp_container /bin/sh
 /app $ wget -qO- http://localhost:8080/health
 /app $ ps aux
 /app $ netstat -ln
 
-# 3. Test with production configuration
+# 3. Test dengan konfigurasi production
 docker build -f Dockerfile.production -t myapp:test .
 docker run -p 8080:8080 myapp:test
 
-# 4. Security scan before deployment
+# 4. Security scan sebelum deployment
 trivy image myapp:test
 docker scout cves myapp:test
 
-# 5. Deploy to production
+# 5. Deploy ke production
 docker tag myapp:test registry.company.com/myapp:v1.0.0
 docker push registry.company.com/myapp:v1.0.0
 ```
 
-### 🛡️ Security Comparison
+### 🛡️ Perbandingan Keamanan
 
 | Security Aspect | Development | Production |
 |-----------------|-------------|------------|
@@ -848,7 +1060,7 @@ docker inspect --format='{{.State.Health.Status}}' $(docker ps -qf "name=app")
 docker stats $(docker ps -qf "name=app")
 ```
 
-### 🔍 Troubleshooting Guide
+### 🔍 Panduan Troubleshooting
 
 <details>
 <summary>🛠️ <strong>Klik untuk melihat panduan troubleshooting</strong></summary>
@@ -960,77 +1172,8 @@ docker stats --no-stream myapp-dev myapp-prod
 ---
 
 **🌐 Available Languages:**
-[�� English](README.md) • [�� Bahasa Indonesia](README.id.md)
+[🇺🇸 English](README.md) • [🇮🇩 Bahasa Indonesia](README.id.md)
 
 [🔝 Kembali ke Atas](#golang-clean-architecture-with-domain-driven-design)
 
 </div>
-
-## 🔒 Security
-
-[⬆️ Kembali ke Daftar Isi](#-daftar-isi)
-
-### Docker Security Features
-
-Proyek ini mengimplementasikan best practices keamanan Docker melalui dua konfigurasi:
-
-#### 🚀 Dockerfile.production - Maximum Security
-- ✅ **Distroless Base Image**: Menggunakan `gcr.io/distroless/static-debian12:nonroot` untuk mengurangi attack surface
-- ✅ **Non-root User**: Container berjalan sebagai user non-root
-- ✅ **Multi-stage Build**: Mengurangi ukuran image dan menghilangkan build dependencies
-- ✅ **Static Binary**: Binary dikompilasi secara static untuk keamanan tambahan
-- ✅ **Security Flags**: Build dengan flag keamanan (`-ldflags='-w -s'`)
-- ✅ **Zero Shell Access**: Tidak ada shell untuk mengurangi attack vector
-- ✅ **Health Checks**: Monitoring kesehatan container dengan aplikasi sendiri
-
-#### 🛠️ Dockerfile.development - Secure Development
-- ✅ **Alpine Linux**: Base image yang aman dengan update security terbaru
-- ✅ **Non-root User**: Custom user dengan UID/GID yang spesifik
-- ✅ **dumb-init**: Proper signal handling untuk graceful shutdown
-- ✅ **Development Tools**: Debugging tools yang aman untuk development
-- ✅ **Health Checks**: HTTP-based health checks dengan wget
-
-### Vulnerability Scanning
-
-Scan kedua konfigurasi Docker untuk vulnerability:
-
-```bash
-# Build kedua images
-docker build -f Dockerfile.production -t myapp:prod .
-docker build -f Dockerfile.development -t myapp:dev .
-
-# Scan production image (minimal vulnerabilities)
-trivy image myapp:prod
-docker scout cves myapp:prod
-
-# Scan development image (lebih banyak surface)
-trivy image myapp:dev  
-docker scout cves myapp:dev
-
-# Menggunakan script yang disediakan
-./scripts/security-scan.sh
-
-# Compare security scores
-echo "Production Image Security:"
-trivy image --severity HIGH,CRITICAL myapp:prod
-echo "Development Image Security:"  
-trivy image --severity HIGH,CRITICAL myapp:dev
-```
-
-### Security Updates
-
-- **Base Images**: Selalu gunakan versi terbaru dari base images
-- **Dependencies**: Update Go dependencies secara berkala dengan `go mod tidy`
-- **Security Patches**: Monitor security advisories untuk Go dan dependencies
-
-### Environment Security
-
-```bash
-# Gunakan strong passwords
-export POSTGRES_PASSWORD="$(openssl rand -base64 32)"
-export JWT_SECRET="$(openssl rand -base64 64)"
-export DB_PASSWORD="$(openssl rand -base64 32)"
-
-# Jalankan dengan environment variables yang aman
-docker-compose -f docker-compose.prod.yml up -d
-```

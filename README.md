@@ -3,7 +3,7 @@
 <!-- Language Toggle -->
 <div align="right">
   <strong>🌐 Language:</strong>
-  <a href="README.md">🇺🇸</a> |
+  <a href="README.en.md">🇺🇸</a> |
   <a href="README.id.md">🇮🇩</a>
 </div>
 <br>
@@ -15,7 +15,7 @@
 [![Security](https://img.shields.io/badge/Security-Distroless-red.svg)](https://github.com/GoogleContainerTools/distroless)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **🌐 Read this in other languages:** [English](README.md) • [Bahasa Indonesia](README.id.md)
+> **🌐 Read this in other languages:** [English](README.en.md) • [Bahasa Indonesia](README.id.md)
 
 This project implements Clean Architecture with Domain-Driven Design (DDD) using the Go programming language. This structure is designed to separate concerns, improve testability, and maintainability.
 
