@@ -26,6 +26,8 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 		logLevel = logger.Silent
 	}
 
+	fmt.Println("cfg.GetDSN():", cfg.GetDSN())
+
 	db, err := gorm.Open(postgres.Open(cfg.GetDSN()), &gorm.Config{
 		Logger: logger.Default.LogMode(logLevel),
 	})

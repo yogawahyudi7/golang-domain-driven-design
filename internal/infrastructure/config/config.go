@@ -21,7 +21,7 @@ type Config struct {
 // DatabaseConfig represents database configuration
 type DatabaseConfig struct {
 	Host     string
-	Port     int
+	Port     string
 	User     string
 	Password string
 	DBName   string
@@ -31,7 +31,7 @@ type DatabaseConfig struct {
 // ServerConfig represents server configuration
 type ServerConfig struct {
 	Host string
-	Port int
+	Port string
 }
 
 // JWTConfig represents JWT configuration
@@ -48,15 +48,6 @@ type AppConfig struct {
 
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
-	dbPort, err := strconv.Atoi(getEnv("DB_PORT", "5432"))
-	if err != nil {
-		return nil, fmt.Errorf("invalid DB_PORT: %w", err)
-	}
-
-	serverPort, err := strconv.Atoi(getEnv("SERVER_PORT", "8080"))
-	if err != nil {
-		return nil, fmt.Errorf("invalid SERVER_PORT: %w", err)
-	}
 
 	jwtExpiresIn, err := time.ParseDuration(getEnv("JWT_EXPIRES_IN", "24h"))
 	if err != nil {
@@ -66,15 +57,15 @@ func Load() (*Config, error) {
 	return &Config{
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     dbPort,
+			Port:     getEnv("DB_PORT", "5432"),
 			User:     getEnv("DB_USER", "postgres"),
-			Password: getEnv("DB_PASSWORD", ""),
+			Password: getEnv("DB_PASSWORD", "postgres"),
 			DBName:   getEnv("DB_NAME", "golang_domain_driven_design"),
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		},
 		Server: ServerConfig{
 			Host: getEnv("SERVER_HOST", "localhost"),
-			Port: serverPort,
+			Port: getEnv("SERVER_PORT", "8080"),
 		},
 		JWT: JWTConfig{
 			Secret:    getEnv("JWT_SECRET", "your-secret-key"),
@@ -105,7 +96,7 @@ func Load() (*Config, error) {
 // GetDSN returns the database connection string
 func (c *Config) GetDSN() string {
 	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		c.Database.Host,
 		c.Database.Port,
 		c.Database.User,
@@ -117,7 +108,7 @@ func (c *Config) GetDSN() string {
 
 // GetServerAddress returns the server address
 func (c *Config) GetServerAddress() string {
-	return fmt.Sprintf("%s:%d", c.Server.Host, c.Server.Port)
+	return fmt.Sprintf("%s:%s", c.Server.Host, c.Server.Port)
 }
 
 // getEnv gets environment variable with fallback

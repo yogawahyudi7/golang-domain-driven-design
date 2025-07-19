@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,11 +22,8 @@ import (
 )
 
 func main() {
-	// Load environment variables first
-	if err := godotenv.Load(); err != nil {
-		// We can't log this yet as logger needs config
-		// But .env file is optional, so we continue
-	}
+	// Initialize benchmark flags and start timing
+	startTime, quickExit := initBenchmarkFlags()
 
 	// Load configuration
 	cfg, err := config.Load()
@@ -33,14 +31,21 @@ func main() {
 		panic("Failed to load configuration: " + err.Error())
 	}
 
+	if cfg.App.Env == "development" {
+		cfg.Logger.PrettyPrint = true
+	}
+
 	// Initialize logger with configuration
 	appLogger := logger.New(cfg.Logger)
 
+	// Log startup time
+	initDuration := time.Since(startTime)
 	appLogger.WithFields(map[string]interface{}{
-		"app_name": cfg.App.Name,
-		"env":      cfg.App.Env,
-		"version":  "1.0.0",
-	}).Info("Starting application")
+		"app_name":        cfg.App.Name,
+		"env":             cfg.App.Env,
+		"version":         "1.0.0",
+		"startup_time_ms": initDuration.Milliseconds(),
+	}).Info("Application initialized")
 
 	// Log environment info
 	if err := godotenv.Load(); err != nil {
@@ -88,6 +93,12 @@ func main() {
 	appLogger.Info("Setting up routes")
 	router := routes.SetupRoutes(healthController, userController, testController, jwtService, appLogger)
 
+	// Quick exit for benchmarking startup time
+	if *quickExit {
+		appLogger.Info("Quick exit mode - exiting after initialization")
+		os.Exit(0)
+	}
+
 	// Create server
 	server := &http.Server{
 		Addr:         cfg.GetServerAddress(),
@@ -121,4 +132,15 @@ func main() {
 	}
 
 	appLogger.Info("Server exited gracefully")
+}
+
+// initBenchmarkFlags sets up benchmark-related flags and returns startup tracking info
+func initBenchmarkFlags() (startTime time.Time, quickExit *bool) {
+	// Parse command line flags for benchmarking
+	quickExit = flag.Bool("quick-exit", false, "Exit immediately after initialization (for startup time benchmarking)")
+	flag.Parse()
+
+	// Record startup time
+	startTime = time.Now()
+	return startTime, quickExit
 }

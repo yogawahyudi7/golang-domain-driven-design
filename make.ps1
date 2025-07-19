@@ -42,6 +42,52 @@ function Test-Coverage {
     Write-Info "Coverage report generated: coverage.html"
 }
 
+function Benchmark {
+    Write-Info "Running Go benchmarks..."
+    go test -bench=. -benchmem ./benchmarks
+}
+
+function BenchmarkFull {
+    Write-Info "Running comprehensive benchmark suite..."
+    & ".\scripts\benchmark.ps1"
+}
+
+function BenchmarkMem {
+    Write-Info "Running memory profile benchmark..."
+    go test -bench=. -memprofile=mem.prof ./benchmarks
+    go tool pprof -http=:8081 mem.prof
+}
+
+function BenchmarkCPU {
+    Write-Info "Running CPU profile benchmark..."
+    go test -bench=. -cpuprofile=cpu.prof ./benchmarks
+    go tool pprof -http=:8081 cpu.prof
+}
+
+function LoadTest {
+    Write-Info "Running load test..."
+    if (Get-Command hey -ErrorAction SilentlyContinue) {
+        Write-Info "Starting application in background..."
+        $AppProcess = Start-Process -FilePath "go" -ArgumentList "run", $MAIN_PATH -PassThru -WindowStyle Hidden
+        Start-Sleep -Seconds 3
+        
+        Write-Info "Running load test with hey..."
+        hey -n 10000 -c 100 http://localhost:8080/health
+        
+        $AppProcess.Kill()
+        $AppProcess.WaitForExit(5000) | Out-Null
+    } else {
+        Write-Host "hey not found. Install with: go install github.com/rakyll/hey@latest" -ForegroundColor Yellow
+    }
+}
+
+function PerfAnalysis {
+    Write-Info "Running complete performance analysis..."
+    Benchmark
+    LoadTest
+    Write-Info "Performance analysis complete"
+}
+
 function Clean {
     Write-Info "Cleaning..."
     if (Test-Path $BUILD_DIR) {
@@ -84,6 +130,12 @@ function Show-Help {
     Write-Host "  run           Run the application" -ForegroundColor White
     Write-Host "  test          Run tests" -ForegroundColor White
     Write-Host "  test-coverage Run tests with coverage" -ForegroundColor White
+    Write-Host "  benchmark     Run Go benchmarks" -ForegroundColor White
+    Write-Host "  benchmark-full Run comprehensive benchmark suite" -ForegroundColor White
+    Write-Host "  benchmark-mem Run memory profile benchmark" -ForegroundColor White
+    Write-Host "  benchmark-cpu Run CPU profile benchmark" -ForegroundColor White
+    Write-Host "  load-test     Run load test with hey" -ForegroundColor White
+    Write-Host "  perf-analysis Run complete performance analysis" -ForegroundColor White
     Write-Host "  clean         Clean build artifacts" -ForegroundColor White
     Write-Host "  deps          Install dependencies" -ForegroundColor White
     Write-Host "  fmt           Format the code" -ForegroundColor White
@@ -102,6 +154,12 @@ switch ($Command.ToLower()) {
     "run" { Run }
     "test" { Test }
     "test-coverage" { Test-Coverage }
+    "benchmark" { Benchmark }
+    "benchmark-full" { BenchmarkFull }
+    "benchmark-mem" { BenchmarkMem }
+    "benchmark-cpu" { BenchmarkCPU }
+    "load-test" { LoadTest }
+    "perf-analysis" { PerfAnalysis }
     "clean" { Clean }
     "deps" { Install-Dependencies }
     "fmt" { Format }

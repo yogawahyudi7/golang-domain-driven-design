@@ -26,6 +26,48 @@ test-coverage:
 	@go test -v -coverprofile=coverage.out ./...
 	@go tool cover -html=coverage.out -o coverage.html
 
+# Run benchmarks
+benchmark:
+	@echo "Running Go benchmarks..."
+	@go test -bench=. -benchmem ./benchmarks
+
+# Run comprehensive benchmark suite
+benchmark-full:
+	@echo "Running comprehensive benchmark suite..."
+	@chmod +x scripts/benchmark.sh
+	@./scripts/benchmark.sh
+
+# Run memory profile benchmark
+benchmark-mem:
+	@echo "Running memory profile benchmark..."
+	@go test -bench=. -memprofile=mem.prof ./benchmarks
+	@go tool pprof -http=:8081 mem.prof
+
+# Run CPU profile benchmark  
+benchmark-cpu:
+	@echo "Running CPU profile benchmark..."
+	@go test -bench=. -cpuprofile=cpu.prof ./benchmarks
+	@go tool pprof -http=:8081 cpu.prof
+
+# Load testing with hey (if available)
+load-test:
+	@echo "Running load test..."
+	@if command -v hey >/dev/null 2>&1; then \
+		echo "Starting application in background..."; \
+		go run $(MAIN_PATH) & \
+		APP_PID=$$!; \
+		sleep 3; \
+		echo "Running load test with hey..."; \
+		hey -n 10000 -c 100 http://localhost:8080/health; \
+		kill $$APP_PID; \
+	else \
+		echo "hey not found. Install with: go install github.com/rakyll/hey@latest"; \
+	fi
+
+# Performance analysis
+perf-analysis: benchmark load-test
+	@echo "Performance analysis complete"
+
 # Clean build artifacts
 clean:
 	@echo "Cleaning..."
@@ -70,6 +112,12 @@ help:
 	@echo "  run           Run the application"
 	@echo "  test          Run tests"
 	@echo "  test-coverage Run tests with coverage"
+	@echo "  benchmark     Run Go benchmarks"
+	@echo "  benchmark-full Run comprehensive benchmark suite"
+	@echo "  benchmark-mem Run memory profile benchmark"
+	@echo "  benchmark-cpu Run CPU profile benchmark"
+	@echo "  load-test     Run load test with hey"
+	@echo "  perf-analysis Run complete performance analysis"
 	@echo "  clean         Clean build artifacts"
 	@echo "  deps          Install dependencies"
 	@echo "  lint          Lint the code"
